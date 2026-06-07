@@ -514,13 +514,33 @@ async function submitScore(total, dur){
 }
 
 /* ====================== BACKEND: auth + profile ====================== */
-async function refreshAuth(){
-  const {data:{user}}=await sb.auth.getUser(); USER=user||null; PROFILE=null;
-  if(USER){
-    const {data}=await sb.from("profiles").select("handle").eq("id",USER.id).maybeSingle();
-    if(data) PROFILE={handle:data.handle};
+const SB_REF = (()=>{try{return new URL(SUPABASE_URL).hostname.split(".")[0];}catch(e){return "";}})();
+function readLocalSession(){
+  try{ const raw=JSON.parse(localStorage.getItem("sb-"+SB_REF+"-auth-token"));
+       return (raw && raw.access_token && raw.user) ? {user:raw.user} : null; }catch(e){ return null; }
+}
+// Resilient hydration: never block the UI on a hanging getSession (navigator.locks can
+// stall in background/automated tabs). Use the passed session if available, else read the
+// persisted token directly, and update the handle asynchronously once it arrives.
+async function refreshAuth(passedSession){
+  let session = passedSession;
+  if(session === undefined){
+    try{
+      const r = await Promise.race([
+        sb.auth.getSession(),
+        new Promise(res=>setTimeout(()=>res({__timeout:true}), 3000))
+      ]);
+      session = (r && r.__timeout) ? readLocalSession() : (r && r.data && r.data.session);
+    }catch(e){ session = readLocalSession(); }
   }
-  renderAcct();
+  USER = session ? session.user : null; PROFILE = null;
+  renderAcct();                       // reflect signed-in state immediately
+  if(USER){
+    try{
+      const {data}=await sb.from("profiles").select("handle").eq("id",USER.id).maybeSingle();
+      if(data){ PROFILE={handle:data.handle}; renderAcct(); }
+    }catch(e){ /* handle fetch is best-effort */ }
+  }
 }
 function renderAcct(){
   const acct=$("acct"), authBtn=$("authBtn"), statsBtn=$("statsBtn");
@@ -620,7 +640,7 @@ $("dailyBtn").onclick=()=>{ if(window.__daily) startGame(window.__daily.category
 
 buildMenu(); wireMode(); renderAcct();
 refreshAuth(); loadDailyInfo();
-sb.auth.onAuthStateChange(()=>refreshAuth());
+sb.auth.onAuthStateChange((event, session)=>refreshAuth(session || readLocalSession()));
 </script>
 </body>
 </html>
