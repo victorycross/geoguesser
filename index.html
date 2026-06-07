@@ -1,0 +1,626 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>GeoGuesser — Map Quiz</title>
+<style>
+  :root{
+    --bg:#0f1623; --panel:#172033; --panel2:#1f2b42; --ink:#e8eef9; --muted:#93a3bd;
+    --accent:#4cc9f0; --accent2:#f72585; --good:#2dd4a7; --bad:#ff6b6b;
+    --line:#2a3854; --gold:#ffd166;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{
+    background:radial-gradient(1200px 700px at 70% -10%, #1b2740 0%, var(--bg) 55%);
+    color:var(--ink); font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    display:flex; align-items:flex-start; justify-content:center; padding:24px;
+  }
+  .app{width:min(960px,100%)}
+  h1{font-size:26px;margin:0;letter-spacing:.3px}
+  h1 .pin{color:var(--accent)}
+  .sub{color:var(--muted);margin:6px 0 0;font-size:14px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:20px}
+  header{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:18px;flex-wrap:wrap}
+
+  .cats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-top:18px}
+  .cat{cursor:pointer;background:var(--panel2);border:1px solid var(--line);border-radius:14px;padding:18px 14px;text-align:center;transition:.15s;user-select:none}
+  .cat:hover{transform:translateY(-3px);border-color:var(--accent);box-shadow:0 8px 24px rgba(0,0,0,.3)}
+  .cat .emoji{font-size:34px;display:block;margin-bottom:8px}
+  .cat .t{font-weight:600}
+  .cat .c{color:var(--muted);font-size:12px;margin-top:4px}
+
+  .controls{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  select,button,input{font-family:inherit}
+  .btn{background:var(--accent);color:#06222e;border:none;border-radius:10px;padding:10px 16px;font-weight:700;cursor:pointer;font-size:14px}
+  .btn:hover{filter:brightness(1.08)}
+  .btn.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}
+  .btn.ghost:hover{border-color:var(--accent)}
+  .btn.pink{background:var(--accent2);color:#fff}
+  .btn.sm{padding:7px 11px;font-size:13px}
+  select,input[type=text],input[type=email]{background:var(--panel2);color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:9px 12px;font-size:14px}
+
+  .seg{display:inline-flex;background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:3px}
+  .seg button{background:transparent;border:none;color:var(--muted);padding:8px 14px;border-radius:8px;cursor:pointer;font-size:14px;font-weight:600}
+  .seg button.on{background:var(--accent);color:#06222e}
+
+  .hud{display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+  .stat{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:8px 14px;font-size:13px}
+  .stat b{font-size:18px;display:block;color:var(--ink)}
+  .stat span{color:var(--muted)}
+  .streak b{color:var(--gold)}
+
+  .progress{height:8px;background:var(--panel2);border-radius:6px;overflow:hidden;margin:14px 0}
+  .progress > i{display:block;height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));width:0;transition:width .3s}
+
+  .mapwrap{position:relative;background:#0c1320;border:1px solid var(--line);border-radius:14px;overflow:hidden}
+  svg{display:block;width:100%;height:auto}
+  .land{fill:#26344f;stroke:#0c1320;stroke-width:.4px}
+  .land.tap{cursor:pointer}
+  .land.tap:hover{fill:#33466b}
+  .target{fill:var(--accent);stroke:#0c1320;stroke-width:.6px}
+  .reveal{fill:var(--good);stroke:#0c1320;stroke-width:.6px}
+  .revealwrong{fill:var(--bad);stroke:#0c1320;stroke-width:.6px}
+  .pin{fill:var(--accent2);stroke:#fff;stroke-width:1.2px}
+  .pinpulse{fill:var(--accent2);opacity:.35}
+  .pingood{fill:var(--good);stroke:#fff;stroke-width:1.2px}
+  .pintap{fill:#fff;stroke:#0c1320;stroke-width:1px}
+  .taphit{fill:transparent;cursor:crosshair}
+  .qlabel{position:absolute;top:12px;left:12px;background:rgba(12,19,32,.82);border:1px solid var(--line);padding:8px 14px;border-radius:10px;font-size:15px;font-weight:600;backdrop-filter:blur(4px);max-width:80%}
+  .qlabel b{color:var(--accent)}
+  .badge{position:absolute;top:12px;right:12px;background:var(--accent2);color:#fff;font-size:12px;font-weight:700;padding:5px 10px;border-radius:20px}
+
+  .answers{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
+  .ans{background:var(--panel2);border:1px solid var(--line);color:var(--ink);border-radius:12px;padding:14px;font-size:15px;cursor:pointer;text-align:left;transition:.12s}
+  .ans:hover:not(:disabled){border-color:var(--accent);background:#243352}
+  .ans.correct{background:rgba(45,212,167,.18);border-color:var(--good);color:#bff5e6}
+  .ans.wrong{background:rgba(255,107,107,.16);border-color:var(--bad);color:#ffd7d7}
+  .ans:disabled{cursor:default}
+
+  .feedback{margin-top:12px;min-height:22px;font-size:14px;font-weight:600}
+  .feedback.good{color:var(--good)}
+  .feedback.bad{color:var(--bad)}
+
+  .center{text-align:center}
+  .big{font-size:48px;font-weight:800;margin:6px 0}
+  .loading{padding:40px;text-align:center;color:var(--muted)}
+  .err{color:var(--bad);padding:18px;text-align:center;font-size:14px;line-height:1.5}
+  .hidden{display:none}
+  footer{color:var(--muted);font-size:12px;text-align:center;margin-top:18px}
+
+  /* account chip */
+  .acct{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)}
+  .acct b{color:var(--ink)}
+
+  /* modal */
+  .overlay{position:fixed;inset:0;background:rgba(6,10,18,.7);display:flex;align-items:center;justify-content:center;padding:20px;z-index:50}
+  .modal{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:22px;width:min(560px,100%);max-height:86vh;overflow:auto}
+  .modal h2{margin:0 0 4px;font-size:20px}
+  .lbtable{width:100%;border-collapse:collapse;margin-top:12px;font-size:14px}
+  .lbtable th{color:var(--muted);text-align:left;font-weight:600;padding:6px 8px;border-bottom:1px solid var(--line)}
+  .lbtable td{padding:8px;border-bottom:1px solid var(--line)}
+  .lbtable tr.me{background:rgba(76,201,240,.12)}
+  .rank{font-weight:800;color:var(--gold)}
+  .savebar{margin-top:14px;padding:12px;border:1px dashed var(--line);border-radius:10px;font-size:14px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+  .muted{color:var(--muted)}
+  @media(max-width:560px){.answers{grid-template-columns:1fr}.big{font-size:38px}}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div>
+      <h1><span class="pin">◉</span> GeoGuesser</h1>
+      <p class="sub">Look at the map. Name the highlighted place — or tap where it is.</p>
+    </div>
+    <div class="controls">
+      <span class="acct" id="acct"></span>
+      <button class="btn ghost sm" id="lbBtn">🏆 Leaderboard</button>
+      <button class="btn ghost sm" id="statsBtn" style="display:none">📊 My stats</button>
+      <button class="btn ghost sm" id="authBtn">Sign in</button>
+    </div>
+  </header>
+
+  <div class="hud" id="hud" style="display:none;margin-bottom:14px">
+    <div class="stat"><b id="hScore">0</b><span>Score</span></div>
+    <div class="stat streak"><b id="hStreak">0</b><span>Streak 🔥</span></div>
+    <div class="stat"><b id="hQ">1/10</b><span>Question</span></div>
+    <button class="btn ghost" id="quitBtn">Quit</button>
+  </div>
+
+  <!-- START SCREEN -->
+  <section id="start" class="card">
+    <div class="controls" style="justify-content:space-between">
+      <div class="controls">
+        <span class="sub" style="margin:0">Answer mode:</span>
+        <div class="seg" id="modeSeg">
+          <button data-mode="mc" class="on">Multiple choice</button>
+          <button data-mode="tap">Tap the map</button>
+        </div>
+      </div>
+      <div class="controls">
+        <span class="sub" style="margin:0">Questions:</span>
+        <select id="roundLen">
+          <option value="5">5</option><option value="10" selected>10</option>
+          <option value="15">15</option><option value="20">20</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="center" style="margin-top:16px">
+      <button class="btn pink" id="dailyBtn">🗓️ Play today’s Daily Challenge</button>
+      <div class="sub" id="dailyInfo" style="margin-top:6px"></div>
+    </div>
+
+    <div class="cats" id="cats"></div>
+    <p class="sub center" id="modeHint" style="margin-top:16px">Multiple choice: a place is highlighted — pick its name.</p>
+  </section>
+
+  <!-- GAME SCREEN -->
+  <section id="game" class="card hidden">
+    <div class="progress"><i id="bar"></i></div>
+    <div class="mapwrap">
+      <div class="qlabel" id="qlabel">What is this?</div>
+      <div class="badge hidden" id="dailyBadge">DAILY</div>
+      <div id="mapHost"><div class="loading">Loading map…</div></div>
+    </div>
+    <div class="answers" id="answers"></div>
+    <div class="feedback" id="feedback"></div>
+  </section>
+
+  <!-- END SCREEN -->
+  <section id="end" class="card hidden center">
+    <p class="sub" id="endCat"></p>
+    <div class="big" id="endScore">0 / 0</div>
+    <p id="endMsg" style="font-size:18px"></p>
+    <div id="saveBar" class="savebar" style="display:none"></div>
+    <div class="controls center" style="justify-content:center;margin-top:16px">
+      <button class="btn" id="againBtn">Play again</button>
+      <button class="btn ghost" id="lbBtn2">View leaderboard</button>
+      <button class="btn ghost" id="menuBtn">Back to menu</button>
+    </div>
+  </section>
+
+  <footer>Map data: Natural Earth via world-atlas / us-atlas · Backend: Supabase</footer>
+</div>
+
+<div id="modalRoot"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+<script src="https://cdn.jsdelivr.net/npm/topojson-client@3"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+/* ============================ CONFIG ============================ */
+const SUPABASE_URL = "https://shpvepnxyirkdkirvjal.supabase.co";
+const SUPABASE_KEY = "sb_publishable_kt_k9xiMvjvbQwTbi_tjUw_MmCl4jaE";
+// Optional: set to a Vercel function path to route score submission through server-side
+// validation. Leave null to write directly to Supabase (RLS-protected).
+const SCORE_API = null; // e.g. "/api/submit-score"
+
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+/* ============================ SOURCES ============================ */
+const SRC = {
+  world:  {type:"topojson", url:"https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json", object:"countries", exclude:["Antarctica"]},
+  us:     {type:"topojson", url:"https://cdn.jsdelivr.net/npm/us-atlas@3/states-10m.json", object:"states", exclude:["Puerto Rico"]},
+  canada: {type:"geojson",  url:"https://cdn.jsdelivr.net/gh/codeforgermany/click_that_hood@main/public/data/canada.geojson"},
+};
+const CATS = {
+  countries:  {emoji:"🌍",  title:"Countries",       caption:"World countries",          kind:"shape", base:"world",  projection:"naturalEarth"},
+  states:     {emoji:"🇺🇸", title:"US States",        caption:"All 50 states",            kind:"shape", base:"us",     projection:"albersUsa"},
+  provinces:  {emoji:"🇨🇦", title:"Canada",           caption:"Provinces & territories",  kind:"shape", base:"canada", projection:"canada"},
+  capitals:   {emoji:"🏛️",  title:"World Capitals",   caption:"National capital cities",  kind:"point", base:"world",  projection:"naturalEarth", data:"CAPITALS"},
+  usCapitals: {emoji:"🏙️",  title:"US Capitals",      caption:"All 50 state capitals",    kind:"point", base:"us",     projection:"albersUsa",    data:"US_CAPITALS"},
+  caCapitals: {emoji:"🍁",  title:"Canada Capitals",  caption:"Provincial/territorial",   kind:"point", base:"canada", projection:"canada",       data:"CA_CAPITALS"},
+  water:      {emoji:"🌊",  title:"Water Bodies",     caption:"Oceans, seas, lakes…",     kind:"point", base:"world",  projection:"naturalEarth", data:"WATER"},
+};
+
+/* ============================ POINT DATA ============================ */
+const CAPITALS = [
+  {name:"Washington, D.C.",lat:38.9,lon:-77.0},{name:"Ottawa",lat:45.4,lon:-75.7},
+  {name:"Mexico City",lat:19.4,lon:-99.1},{name:"London",lat:51.5,lon:-0.1},
+  {name:"Paris",lat:48.9,lon:2.35},{name:"Madrid",lat:40.4,lon:-3.7},
+  {name:"Lisbon",lat:38.7,lon:-9.1},{name:"Rome",lat:41.9,lon:12.5},
+  {name:"Berlin",lat:52.5,lon:13.4},{name:"Amsterdam",lat:52.4,lon:4.9},
+  {name:"Brussels",lat:50.8,lon:4.35},{name:"Bern",lat:46.9,lon:7.45},
+  {name:"Vienna",lat:48.2,lon:16.4},{name:"Prague",lat:50.1,lon:14.4},
+  {name:"Warsaw",lat:52.2,lon:21.0},{name:"Stockholm",lat:59.3,lon:18.1},
+  {name:"Oslo",lat:59.9,lon:10.7},{name:"Copenhagen",lat:55.7,lon:12.6},
+  {name:"Helsinki",lat:60.2,lon:24.9},{name:"Dublin",lat:53.3,lon:-6.3},
+  {name:"Athens",lat:38.0,lon:23.7},{name:"Budapest",lat:47.5,lon:19.0},
+  {name:"Moscow",lat:55.75,lon:37.6},{name:"Kyiv",lat:50.45,lon:30.5},
+  {name:"Ankara",lat:39.9,lon:32.85},{name:"Cairo",lat:30.0,lon:31.2},
+  {name:"Nairobi",lat:-1.3,lon:36.8},{name:"Pretoria",lat:-25.7,lon:28.2},
+  {name:"Abuja",lat:9.1,lon:7.5},{name:"Accra",lat:5.6,lon:-0.2},
+  {name:"Rabat",lat:34.0,lon:-6.8},{name:"Addis Ababa",lat:9.0,lon:38.7},
+  {name:"Riyadh",lat:24.7,lon:46.7},{name:"Baghdad",lat:33.3,lon:44.4},
+  {name:"Tehran",lat:35.7,lon:51.4},{name:"New Delhi",lat:28.6,lon:77.2},
+  {name:"Islamabad",lat:33.7,lon:73.1},{name:"Kathmandu",lat:27.7,lon:85.3},
+  {name:"Dhaka",lat:23.8,lon:90.4},{name:"Bangkok",lat:13.75,lon:100.5},
+  {name:"Hanoi",lat:21.0,lon:105.85},{name:"Jakarta",lat:-6.2,lon:106.8},
+  {name:"Kuala Lumpur",lat:3.1,lon:101.7},{name:"Manila",lat:14.6,lon:121.0},
+  {name:"Beijing",lat:39.9,lon:116.4},{name:"Tokyo",lat:35.7,lon:139.7},
+  {name:"Seoul",lat:37.55,lon:126.98},{name:"Canberra",lat:-35.3,lon:149.1},
+  {name:"Wellington",lat:-41.3,lon:174.8},{name:"Brasília",lat:-15.8,lon:-47.9},
+  {name:"Buenos Aires",lat:-34.6,lon:-58.4},{name:"Santiago",lat:-33.45,lon:-70.7},
+  {name:"Lima",lat:-12.0,lon:-77.0},{name:"Bogotá",lat:4.7,lon:-74.1},
+  {name:"Caracas",lat:10.5,lon:-66.9},{name:"Quito",lat:-0.2,lon:-78.5},
+  {name:"Havana",lat:23.1,lon:-82.4},{name:"Reykjavík",lat:64.1,lon:-21.9},
+];
+const US_CAPITALS = [
+  {name:"Montgomery",lat:32.38,lon:-86.30},{name:"Juneau",lat:58.30,lon:-134.42},
+  {name:"Phoenix",lat:33.45,lon:-112.07},{name:"Little Rock",lat:34.75,lon:-92.29},
+  {name:"Sacramento",lat:38.58,lon:-121.49},{name:"Denver",lat:39.74,lon:-104.99},
+  {name:"Hartford",lat:41.76,lon:-72.68},{name:"Dover",lat:39.16,lon:-75.52},
+  {name:"Tallahassee",lat:30.44,lon:-84.28},{name:"Atlanta",lat:33.75,lon:-84.39},
+  {name:"Honolulu",lat:21.31,lon:-157.86},{name:"Boise",lat:43.62,lon:-116.20},
+  {name:"Springfield",lat:39.80,lon:-89.65},{name:"Indianapolis",lat:39.77,lon:-86.16},
+  {name:"Des Moines",lat:41.59,lon:-93.62},{name:"Topeka",lat:39.05,lon:-95.69},
+  {name:"Frankfort",lat:38.20,lon:-84.87},{name:"Baton Rouge",lat:30.46,lon:-91.14},
+  {name:"Augusta",lat:44.31,lon:-69.78},{name:"Annapolis",lat:38.98,lon:-76.49},
+  {name:"Boston",lat:42.36,lon:-71.06},{name:"Lansing",lat:42.73,lon:-84.56},
+  {name:"Saint Paul",lat:44.95,lon:-93.09},{name:"Jackson",lat:32.30,lon:-90.18},
+  {name:"Jefferson City",lat:38.58,lon:-92.17},{name:"Helena",lat:46.59,lon:-112.04},
+  {name:"Lincoln",lat:40.81,lon:-96.70},{name:"Carson City",lat:39.16,lon:-119.77},
+  {name:"Concord",lat:43.21,lon:-71.54},{name:"Trenton",lat:40.22,lon:-74.76},
+  {name:"Santa Fe",lat:35.69,lon:-105.94},{name:"Albany",lat:42.65,lon:-73.75},
+  {name:"Raleigh",lat:35.78,lon:-78.64},{name:"Bismarck",lat:46.81,lon:-100.78},
+  {name:"Columbus",lat:39.96,lon:-83.00},{name:"Oklahoma City",lat:35.47,lon:-97.52},
+  {name:"Salem",lat:44.94,lon:-123.04},{name:"Harrisburg",lat:40.27,lon:-76.88},
+  {name:"Providence",lat:41.82,lon:-71.41},{name:"Columbia",lat:34.00,lon:-81.03},
+  {name:"Pierre",lat:44.37,lon:-100.35},{name:"Nashville",lat:36.16,lon:-86.78},
+  {name:"Austin",lat:30.27,lon:-97.74},{name:"Salt Lake City",lat:40.76,lon:-111.89},
+  {name:"Montpelier",lat:44.26,lon:-72.58},{name:"Richmond",lat:37.54,lon:-77.44},
+  {name:"Olympia",lat:47.04,lon:-122.90},{name:"Charleston",lat:38.35,lon:-81.63},
+  {name:"Madison",lat:43.07,lon:-89.40},{name:"Cheyenne",lat:41.14,lon:-104.82},
+];
+const CA_CAPITALS = [
+  {name:"St. John's",lat:47.56,lon:-52.71},{name:"Halifax",lat:44.65,lon:-63.57},
+  {name:"Fredericton",lat:45.96,lon:-66.64},{name:"Charlottetown",lat:46.24,lon:-63.13},
+  {name:"Québec City",lat:46.81,lon:-71.21},{name:"Toronto",lat:43.65,lon:-79.38},
+  {name:"Winnipeg",lat:49.90,lon:-97.14},{name:"Regina",lat:50.45,lon:-104.62},
+  {name:"Edmonton",lat:53.55,lon:-113.49},{name:"Victoria",lat:48.43,lon:-123.37},
+  {name:"Whitehorse",lat:60.72,lon:-135.06},{name:"Yellowknife",lat:62.45,lon:-114.37},
+  {name:"Iqaluit",lat:63.75,lon:-68.52},
+];
+const WATER = [
+  {name:"Pacific Ocean",lat:0,lon:-150},{name:"Atlantic Ocean",lat:10,lon:-35},
+  {name:"Indian Ocean",lat:-25,lon:78},{name:"Arctic Ocean",lat:84,lon:0},
+  {name:"Southern Ocean",lat:-62,lon:30},{name:"Mediterranean Sea",lat:35,lon:18},
+  {name:"Caribbean Sea",lat:15,lon:-75},{name:"Gulf of Mexico",lat:25,lon:-90},
+  {name:"Hudson Bay",lat:60,lon:-86},{name:"Caspian Sea",lat:42,lon:50.5},
+  {name:"Black Sea",lat:43,lon:34},{name:"Red Sea",lat:20,lon:38},
+  {name:"Persian Gulf",lat:27,lon:51},{name:"Arabian Sea",lat:15,lon:65},
+  {name:"Bay of Bengal",lat:15,lon:88},{name:"South China Sea",lat:13,lon:115},
+  {name:"Sea of Japan",lat:40,lon:135},{name:"Bering Sea",lat:58,lon:-178},
+  {name:"North Sea",lat:56,lon:3},{name:"Baltic Sea",lat:58,lon:20},
+  {name:"Gulf of Alaska",lat:57,lon:-145},{name:"Coral Sea",lat:-18,lon:152},
+  {name:"Tasman Sea",lat:-40,lon:160},{name:"Gulf of Guinea",lat:2,lon:3},
+  {name:"Lake Superior",lat:47.7,lon:-87.5},{name:"Lake Michigan",lat:44,lon:-87},
+  {name:"Lake Huron",lat:45,lon:-82.4},{name:"Lake Victoria",lat:-1,lon:33},
+  {name:"Lake Baikal",lat:53.5,lon:108},{name:"Great Salt Lake",lat:41.1,lon:-112.5},
+  {name:"Lake Titicaca",lat:-15.8,lon:-69.3},{name:"Gulf of Aden",lat:12,lon:48},
+  {name:"Gulf of Oman",lat:24.5,lon:59},{name:"English Channel",lat:50,lon:-1},
+  {name:"Adriatic Sea",lat:43,lon:15},{name:"Aegean Sea",lat:38,lon:25},
+  {name:"Yellow Sea",lat:35,lon:123},{name:"Java Sea",lat:-5,lon:111},
+  {name:"Labrador Sea",lat:57,lon:-53},
+];
+const POINTSETS = {CAPITALS, US_CAPITALS, CA_CAPITALS, WATER};
+const CAT_LABEL = {countries:"Countries",states:"US States",provinces:"Canada",
+  capitals:"World Capitals",usCapitals:"US Capitals",caCapitals:"Canada Capitals",water:"Water Bodies"};
+
+/* ============================ STATE ============================ */
+let S = {key:null, cfg:null, mode:"mc", features:[], base:[], names:[], queue:[], idx:0,
+         score:0, streak:0, answered:false, daily:null, startedAt:0};
+let USER=null, PROFILE=null;
+const baseCache={}, pointCache={};
+const $ = id => document.getElementById(id);
+const shuffle = a => a.map(v=>[Math.random(),v]).sort((p,q)=>p[0]-q[0]).map(p=>p[1]);
+function pick(arr,n,exclude){const pool=arr.filter(x=>x!==exclude);return shuffle(pool).slice(0,n);}
+// seeded PRNG (mulberry32) for deterministic daily challenge
+function mulberry32(seed){return function(){let t=seed+=0x6D2B79F5;t=Math.imul(t^t>>>15,t|1);t^=t+Math.imul(t^t>>>7,t|61);return((t^t>>>14)>>>0)/4294967296;};}
+function seededShuffle(arr,seed){const r=mulberry32(seed>>>0);const a=arr.slice();
+  for(let i=a.length-1;i>0;i--){const j=Math.floor(r()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
+
+/* ============================ MENU ============================ */
+function buildMenu(){
+  const host=$("cats"); host.innerHTML="";
+  Object.entries(CATS).forEach(([key,c])=>{
+    const d=document.createElement("div"); d.className="cat";
+    d.innerHTML=`<span class="emoji">${c.emoji}</span><div class="t">${c.title}</div><div class="c">${c.caption}</div>`;
+    d.onclick=()=>startGame(key);
+    host.appendChild(d);
+  });
+}
+function wireMode(){
+  $("modeSeg").querySelectorAll("button").forEach(b=>{
+    b.onclick=()=>{
+      $("modeSeg").querySelectorAll("button").forEach(x=>x.classList.remove("on"));
+      b.classList.add("on"); S.mode=b.dataset.mode;
+      $("modeHint").textContent = S.mode==="tap"
+        ? "Tap the map: you're given a name — tap where it is on the map."
+        : "Multiple choice: a place is highlighted — pick its name.";
+    };
+  });
+}
+
+/* ====================== DATA LOADING ====================== */
+async function fetchFeatures(src){
+  const res=await fetch(src.url); if(!res.ok) throw new Error("HTTP "+res.status);
+  const json=await res.json();
+  let feats = src.type==="topojson"
+    ? topojson.feature(json, json.objects[src.object]).features : json.features;
+  feats=feats.map(f=>{const p=f.properties||{};
+    const name=p.name||p.NAME||p.NAME_1||p.name_en||p.admin||p.gn_name||"?";
+    return {name, geometry:f, point:false};}).filter(f=>f.name && f.name!=="?");
+  if(src.exclude) feats=feats.filter(f=>!src.exclude.includes(f.name));
+  const seen=new Set(); feats=feats.filter(f=>{if(seen.has(f.name))return false;seen.add(f.name);return true;});
+  return feats;
+}
+async function ensureBase(b){ if(baseCache[b])return baseCache[b]; baseCache[b]=await fetchFeatures(SRC[b]); return baseCache[b]; }
+function loadPoints(n){ if(pointCache[n])return pointCache[n];
+  pointCache[n]=POINTSETS[n].map(p=>({name:p.name,lat:p.lat,lon:p.lon,point:true})); return pointCache[n]; }
+
+/* ====================== GAME FLOW ====================== */
+async function startGame(key, daily){
+  S.key=key; S.cfg=CATS[key]; S.score=0; S.streak=0; S.idx=0; S.daily=daily||null; S.startedAt=Date.now();
+  $("start").classList.add("hidden"); $("end").classList.add("hidden");
+  $("game").classList.remove("hidden"); $("hud").style.display="flex";
+  $("dailyBadge").classList.toggle("hidden", !daily);
+  $("mapHost").innerHTML='<div class="loading">Loading map data…</div>';
+  $("answers").innerHTML=""; $("feedback").textContent="";
+  try{
+    S.base = await ensureBase(S.cfg.base);
+    S.features = S.cfg.kind==="shape" ? S.base : loadPoints(S.cfg.data);
+    S.names = S.features.map(f=>f.name);
+    if(daily){
+      S.mode = daily.mode;
+      S.queue = seededShuffle(S.features, daily.seed).slice(0, daily.num_questions);
+    } else {
+      const len=Math.min(parseInt($("roundLen").value,10), S.features.length);
+      S.queue=shuffle(S.features).slice(0,len);
+    }
+    renderQuestion();
+  }catch(e){
+    $("mapHost").innerHTML='<div class="err">Couldn’t load map data.<br>Check your internet connection and try again.<br><small>'+e.message+'</small></div>';
+  }
+}
+function makeProjection(cfg, baseFeatures){
+  const w=860, h=480; let proj;
+  if(cfg.projection==="albersUsa") proj=d3.geoAlbersUsa();
+  else if(cfg.projection==="canada") proj=d3.geoConicConformal().rotate([95,0]).center([0,62]).parallels([49,77]);
+  else proj=d3.geoNaturalEarth1();
+  const fc={type:"FeatureCollection", features:baseFeatures.map(f=>f.geometry)};
+  if(cfg.base==="world" && cfg.kind==="point") proj.fitExtent([[10,10],[w-10,h-10]], {type:"Sphere"});
+  else proj.fitExtent([[20,20],[w-20,h-20]], fc);
+  return {proj,w,h};
+}
+function renderQuestion(){
+  S.answered=false;
+  const cur=S.queue[S.idx], cfg=S.cfg, tap=S.mode==="tap";
+  const noun = S.key==="countries"?"country":S.key==="states"?"US state":S.key==="provinces"?"province/territory":
+               S.key==="water"?"water body":"capital";
+  $("qlabel").innerHTML = tap ? `Tap: <b>${cur.name}</b>` :
+       (cfg.kind==="point" ? `Which ${noun} is marked?` : `Which ${noun} is highlighted?`);
+  $("hScore").textContent=S.score; $("hStreak").textContent=S.streak;
+  $("hQ").textContent=(S.idx+1)+"/"+S.queue.length; $("bar").style.width=(S.idx/S.queue.length*100)+"%";
+
+  const {proj,w,h}=makeProjection(cfg, S.base);
+  const path=d3.geoPath(proj);
+  const host=$("mapHost"); host.innerHTML="";
+  const svg=d3.select(host).append("svg").attr("viewBox",`0 0 ${w} ${h}`);
+  const g=svg.append("g");
+  const paths=g.selectAll("path").data(S.base).enter().append("path")
+     .attr("d",d=>path(d.geometry))
+     .attr("class",d=>{ if(!tap && cfg.kind==="shape" && d.name===cur.name) return "target";
+        return tap && cfg.kind==="shape" ? "land tap" : "land"; });
+  if(!tap){
+    if(cfg.kind==="point"){
+      const xy=proj([cur.lon,cur.lat]);
+      if(xy){ svg.append("circle").attr("class","pinpulse").attr("cx",xy[0]).attr("cy",xy[1]).attr("r",16);
+              svg.append("circle").attr("class","pin").attr("cx",xy[0]).attr("cy",xy[1]).attr("r",6); }
+    } else {
+      const b=path.bounds(cur.geometry);
+      const cx=(b[0][0]+b[1][0])/2, cy=(b[0][1]+b[1][1])/2;
+      const bw=b[1][0]-b[0][0], bh=b[1][1]-b[0][1];
+      const scale=Math.max(1, Math.min(4, 0.6/Math.max(bw/w, bh/h)));
+      if(isFinite(scale) && scale>1.05) g.attr("transform",`translate(${w/2},${h/2}) scale(${scale}) translate(${-cx},${-cy})`);
+    }
+    buildAnswers(cur);
+  } else {
+    $("answers").innerHTML=""; $("feedback").textContent="Tap the map."; $("feedback").className="feedback";
+    if(cfg.kind==="shape") paths.on("click",function(ev,d){ if(S.answered)return; tapShape(d,cur,svg,path); });
+    else { const hit=svg.append("rect").attr("class","taphit").attr("x",0).attr("y",0).attr("width",w).attr("height",h);
+           hit.on("click",function(ev){ if(S.answered)return; tapPoint(d3.pointer(ev,svg.node()),cur,svg,proj); }); }
+  }
+}
+function buildAnswers(cur){
+  const correct=cur.name, options=shuffle([correct,...pick(S.names,3,correct)]);
+  const ansHost=$("answers"); ansHost.innerHTML=""; $("feedback").textContent="";
+  options.forEach(opt=>{ const b=document.createElement("button"); b.className="ans"; b.textContent=opt;
+    b.onclick=()=>{ if(S.answered)return;
+      [...document.querySelectorAll(".ans")].forEach(x=>{x.disabled=true;
+        if(x.textContent===correct)x.classList.add("correct"); else if(x===b)x.classList.add("wrong");});
+      score(opt===correct, correct); };
+    ansHost.appendChild(b); });
+}
+function tapShape(d,cur,svg){
+  const correct=d.name===cur.name;
+  svg.selectAll("path").attr("class",f=> f.name===cur.name?"reveal":(f.name===d.name&&!correct?"revealwrong":"land"));
+  score(correct, cur.name);
+}
+function tapPoint(xy,cur,svg,proj){
+  let best=null,bd=1e9;
+  S.features.forEach(f=>{const p=proj([f.lon,f.lat]); if(!p)return;
+    const dist=Math.hypot(p[0]-xy[0],p[1]-xy[1]); if(dist<bd){bd=dist;best=f;}});
+  const correct=best&&best.name===cur.name, t=proj([cur.lon,cur.lat]);
+  svg.append("circle").attr("class","pintap").attr("cx",xy[0]).attr("cy",xy[1]).attr("r",5);
+  if(t){ svg.append("line").attr("x1",xy[0]).attr("y1",xy[1]).attr("x2",t[0]).attr("y2",t[1])
+       .attr("stroke",correct?"#2dd4a7":"#ff6b6b").attr("stroke-width",1.5).attr("stroke-dasharray","4 3");
+    svg.append("circle").attr("class","pingood").attr("cx",t[0]).attr("cy",t[1]).attr("r",6); }
+  score(correct, cur.name);
+}
+function score(correct, answer){
+  S.answered=true; const fb=$("feedback");
+  if(correct){ S.score++; S.streak++;
+    fb.className="feedback good"; fb.textContent="Correct!"+(S.streak>=3?` 🔥 ${S.streak} in a row!`:""); }
+  else { S.streak=0; fb.className="feedback bad"; fb.textContent="It was "+answer+"."; }
+  $("hScore").textContent=S.score; $("hStreak").textContent=S.streak;
+  setTimeout(next, correct?800:1500);
+}
+function next(){ S.idx++; if(S.idx>=S.queue.length) return endGame(); renderQuestion(); }
+
+async function endGame(){
+  $("game").classList.add("hidden"); $("hud").style.display="none"; $("end").classList.remove("hidden");
+  const total=S.queue.length, pct=Math.round(S.score/total*100), dur=Date.now()-S.startedAt;
+  $("endCat").textContent=S.cfg.emoji+" "+S.cfg.title+" · "+(S.mode==="tap"?"Tap mode":"Multiple choice")+(S.daily?" · Daily":"");
+  $("endScore").textContent=S.score+" / "+total;
+  let msg; if(pct===100)msg="Flawless! 🏆 You're a cartographer.";
+  else if(pct>=80)msg="Excellent geography skills! 🌟"; else if(pct>=60)msg="Solid round. Keep exploring! 🧭";
+  else if(pct>=40)msg="Not bad — room to roam. 🗺️"; else msg="The world awaits. Try again! 🌍";
+  $("endMsg").textContent=msg;
+  await submitScore(total, dur);
+}
+
+/* ====================== BACKEND: scores ====================== */
+async function submitScore(total, dur){
+  const bar=$("saveBar"); bar.style.display="flex"; bar.innerHTML="";
+  if(!USER){
+    bar.innerHTML='<span class="muted">Sign in to save your score to the leaderboard.</span>'
+      +'<button class="btn sm" id="saveSignin">Sign in</button>';
+    $("saveSignin").onclick=openAuth; return;
+  }
+  if(!PROFILE){ bar.innerHTML='<span class="muted">Pick a player name to appear on the leaderboard.</span>'
+      +'<button class="btn sm" id="savHandle">Choose name</button>';
+    $("savHandle").onclick=()=>openHandle(()=>submitScore(total,dur)); return; }
+  bar.innerHTML='<span class="muted">Saving your score…</span>';
+  const payload={category:S.key, mode:S.mode, score:S.score, total, duration_ms:dur,
+                 is_daily:!!S.daily, challenge_day:S.daily?S.daily.day:null};
+  try{
+    if(SCORE_API){
+      const {data:{session}}=await sb.auth.getSession();
+      const r=await fetch(SCORE_API,{method:"POST",headers:{"Content-Type":"application/json",
+        "Authorization":"Bearer "+(session?.access_token||"")},body:JSON.stringify(payload)});
+      if(!r.ok) throw new Error("api "+r.status);
+    } else {
+      const {error}=await sb.from("scores").insert({user_id:USER.id, ...payload});
+      if(error) throw error;
+    }
+    bar.innerHTML='<span class="good" style="color:var(--good)">✓ Saved as <b>'+escapeHtml(PROFILE.handle)+'</b></span>'
+      +'<button class="btn sm ghost" id="afterLb">See leaderboard</button>';
+    $("afterLb").onclick=()=>openLeaderboard(S.key,S.mode,S.daily?"daily":"alltime");
+  }catch(e){ bar.innerHTML='<span style="color:var(--bad)">Couldn’t save score: '+escapeHtml(e.message||"error")+'</span>'; }
+}
+
+/* ====================== BACKEND: auth + profile ====================== */
+async function refreshAuth(){
+  const {data:{user}}=await sb.auth.getUser(); USER=user||null; PROFILE=null;
+  if(USER){
+    const {data}=await sb.from("profiles").select("handle").eq("id",USER.id).maybeSingle();
+    if(data) PROFILE={handle:data.handle};
+  }
+  renderAcct();
+}
+function renderAcct(){
+  const acct=$("acct"), authBtn=$("authBtn"), statsBtn=$("statsBtn");
+  if(USER){
+    acct.innerHTML = PROFILE ? 'Signed in as <b>'+escapeHtml(PROFILE.handle)+'</b>'
+                             : '<span class="muted">Signed in (no name yet)</span>';
+    authBtn.textContent="Sign out"; authBtn.onclick=async()=>{await sb.auth.signOut(); await refreshAuth();};
+    statsBtn.style.display="";
+  } else {
+    acct.innerHTML=""; authBtn.textContent="Sign in"; authBtn.onclick=openAuth; statsBtn.style.display="none";
+  }
+}
+function modal(html){ const r=$("modalRoot");
+  r.innerHTML='<div class="overlay" id="ov"><div class="modal">'+html+'</div></div>';
+  $("ov").onclick=e=>{ if(e.target.id==="ov") r.innerHTML=""; }; return r; }
+function closeModal(){ $("modalRoot").innerHTML=""; }
+function openAuth(){
+  modal('<h2>Sign in</h2><p class="sub">We’ll email you a magic link — no password needed.</p>'
+    +'<div class="controls" style="margin-top:14px"><input type="email" id="email" placeholder="you@example.com" style="flex:1"/>'
+    +'<button class="btn" id="sendLink">Send link</button></div>'
+    +'<div class="sub" id="authMsg" style="margin-top:10px"></div>');
+  $("sendLink").onclick=async()=>{
+    const email=$("email").value.trim(); if(!email) return;
+    $("authMsg").textContent="Sending…";
+    const {error}=await sb.auth.signInWithOtp({email, options:{emailRedirectTo:location.href.split('#')[0]}});
+    $("authMsg").innerHTML = error ? '<span style="color:var(--bad)">'+escapeHtml(error.message)+'</span>'
+      : '✓ Check your inbox and click the link. You can close this and return here.';
+  };
+}
+function openHandle(onDone){
+  modal('<h2>Choose your player name</h2><p class="sub">Shown on the public leaderboard (2–20 characters).</p>'
+    +'<div class="controls" style="margin-top:14px"><input type="text" id="handle" maxlength="20" placeholder="e.g. MapMaster" style="flex:1"/>'
+    +'<button class="btn" id="saveHandle">Save</button></div>'
+    +'<div class="sub" id="hMsg" style="margin-top:10px"></div>');
+  $("handle").value = PROFILE?PROFILE.handle:"";
+  $("saveHandle").onclick=async()=>{
+    const h=$("handle").value.trim(); if(h.length<2){$("hMsg").textContent="Too short.";return;}
+    $("hMsg").textContent="Saving…";
+    const {data,error}=await sb.rpc("set_handle",{new_handle:h});
+    if(error){$("hMsg").innerHTML='<span style="color:var(--bad)">'+escapeHtml(error.message)+'</span>';return;}
+    PROFILE={handle:(data&&data.handle)||h}; renderAcct(); closeModal(); if(onDone)onDone();
+  };
+}
+
+/* ====================== BACKEND: leaderboard + stats + daily ====================== */
+async function openLeaderboard(cat, mode, period){
+  cat=cat||S.key||"countries"; mode=mode||"mc"; period=period||"alltime";
+  const catOpts=Object.keys(CAT_LABEL).map(k=>`<option value="${k}" ${k===cat?"selected":""}>${CAT_LABEL[k]}</option>`).join("");
+  modal('<h2>🏆 Leaderboard</h2>'
+    +'<div class="controls" style="margin-top:10px">'
+    +'<select id="lbCat">'+catOpts+'</select>'
+    +'<select id="lbMode"><option value="mc" '+(mode==="mc"?"selected":"")+'>Multiple choice</option>'
+    +'<option value="tap" '+(mode==="tap"?"selected":"")+'>Tap mode</option></select>'
+    +'<select id="lbPeriod"><option value="alltime" '+(period==="alltime"?"selected":"")+'>All-time</option>'
+    +'<option value="daily" '+(period==="daily"?"selected":"")+'>Today’s daily</option></select>'
+    +'</div><div id="lbBody"><div class="loading">Loading…</div></div>');
+  const load=async()=>{
+    const c=$("lbCat").value,m=$("lbMode").value,p=$("lbPeriod").value;
+    $("lbBody").innerHTML='<div class="loading">Loading…</div>';
+    const {data,error}=await sb.rpc("leaderboard",{p_category:c,p_mode:m,p_period:p,p_limit:25});
+    if(error){$("lbBody").innerHTML='<div class="err">'+escapeHtml(error.message)+'</div>';return;}
+    if(!data||!data.length){$("lbBody").innerHTML='<p class="sub" style="margin-top:14px">No scores yet — be the first!</p>';return;}
+    let rows=data.map(r=>{const me=PROFILE&&r.handle===PROFILE.handle;
+      const t=r.duration_ms?(Math.round(r.duration_ms/1000)+"s"):"—";
+      return `<tr class="${me?'me':''}"><td class="rank">${r.rank}</td><td>${escapeHtml(r.handle)}</td>`
+            +`<td>${r.score}/${r.total}</td><td>${t}</td></tr>`;}).join("");
+    $("lbBody").innerHTML='<table class="lbtable"><thead><tr><th>#</th><th>Player</th><th>Score</th><th>Time</th></tr></thead><tbody>'+rows+'</tbody></table>';
+  };
+  ["lbCat","lbMode","lbPeriod"].forEach(id=>$(id).onchange=load); load();
+}
+async function openStats(){
+  modal('<h2>📊 My stats</h2><div id="stBody"><div class="loading">Loading…</div></div>');
+  const {data,error}=await sb.rpc("my_stats");
+  if(error){$("stBody").innerHTML='<div class="err">'+escapeHtml(error.message)+'</div>';return;}
+  if(!data||!data.length){$("stBody").innerHTML='<p class="sub" style="margin-top:14px">No games saved yet. Play a round!</p>';return;}
+  const rows=data.map(r=>`<tr><td>${CAT_LABEL[r.category]||r.category}</td><td>${r.mode==="tap"?"Tap":"MC"}</td>`
+    +`<td>${r.games}</td><td>${r.best}/${r.best_total}</td><td>${r.avg_pct}%</td></tr>`).join("");
+  $("stBody").innerHTML='<table class="lbtable"><thead><tr><th>Category</th><th>Mode</th><th>Games</th><th>Best</th><th>Avg</th></tr></thead><tbody>'+rows+'</tbody></table>';
+}
+async function loadDailyInfo(){
+  try{ const {data,error}=await sb.rpc("get_daily_challenge"); if(error)throw error;
+    const d=Array.isArray(data)?data[0]:data; if(!d)return;
+    window.__daily=d;
+    $("dailyInfo").textContent="Today: "+(CAT_LABEL[d.category]||d.category)+" · "+(d.mode==="tap"?"Tap mode":"Multiple choice")+" · "+d.num_questions+" questions";
+  }catch(e){ $("dailyInfo").textContent=""; }
+}
+
+/* ====================== util + wiring ====================== */
+function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
+$("quitBtn").onclick=()=>{ $("game").classList.add("hidden"); $("hud").style.display="none"; $("start").classList.remove("hidden"); };
+$("menuBtn").onclick=()=>{ $("end").classList.add("hidden"); $("start").classList.remove("hidden"); };
+$("againBtn").onclick=()=>startGame(S.key, S.daily);
+$("lbBtn").onclick=()=>openLeaderboard();
+$("lbBtn2").onclick=()=>openLeaderboard(S.key,S.mode,S.daily?"daily":"alltime");
+$("statsBtn").onclick=openStats;
+$("dailyBtn").onclick=()=>{ if(window.__daily) startGame(window.__daily.category, window.__daily); };
+
+buildMenu(); wireMode(); renderAcct();
+refreshAuth(); loadDailyInfo();
+sb.auth.onAuthStateChange(()=>refreshAuth());
+</script>
+</body>
+</html>
